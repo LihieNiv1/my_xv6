@@ -1,0 +1,9 @@
+1. usertrap called syscall
+2. the trapframe a7 (register?) is 7. this fits SYS_exec,
+meaning syscall to exec.
+3. $sstatus=0x22, which is smaller than 2^8, hence bit 8 (SPP) is 0,
+meaning it was in user mode.
+4. the instr: lw	a3,0(zero) # 0 <_entry-0x80000000>
+so num is kept in reg a3.
+5. It is an illegal address, which is confirmed by the cause being load page failed.
+6. The binary that was running is initcode, with pid 1.

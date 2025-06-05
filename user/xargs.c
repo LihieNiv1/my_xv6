@@ -25,7 +25,7 @@ int main(int argc, char *argv[])
         fprintf(2, "Usage: xargs <command> <args>\n");
         exit(1);
     }
-    char line_arg[MAXARG + 1] = {0};
+    char line_arg[101] = {0};
     uint offset = 0;
     for (int i = 0; i < argc - 1; i++)
     {
@@ -40,7 +40,7 @@ int main(int argc, char *argv[])
             exec_xargs(argv);
             offset = 0;
         }
-        else if (offset == MAXARG)
+        else if (offset == 100)
         {
             fprintf(2, "xargs: line too long\n");
             exit(1);

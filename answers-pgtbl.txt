@@ -1,0 +1,12 @@
+1. I suppose that time up? A shared ro page that will be written once in kernel and all processes see, and kernel will update every once in a while.
+2. The first (va 0x0) is the text (code) section for the init program, and its flags are U,V (obvious, since ran from user),X&R -
+the user is allowed to execute its code and read its code, but not write to it.
+The second (va 0x1000) is the data section - its flags are U (so, it can access its data - important), R&W - the user can read and modify its data
+but it is NOT executable - only the text part should be, so that's also good.
+The third (va 0x2000) is probably a guard page - the U flag isn't on, so a user can't write to it,
+meaning overflows from the stack/heap that sit above it would cause an exception when trying to access the guard,
+and specifically wouldn't get to the data or text section. (Obviously, though, if the issue isn't a simple overflow, an attacker might find
+a way to skip the guard page, but for now that'll do).
+The third to last page is our dear shared page implemented in the first part of the lab - 
+its flags are U&R - the user can access it but only read it, as wanted.
+All pages also had the valid bit on, obviously.

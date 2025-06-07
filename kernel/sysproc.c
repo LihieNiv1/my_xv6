@@ -12,7 +12,7 @@ sys_exit(void)
   int n;
   argint(0, &n);
   exit(n);
-  return 0;  // not reached
+  return 0; // not reached
 }
 
 uint64
@@ -43,7 +43,7 @@ sys_sbrk(void)
 
   argint(0, &n);
   addr = myproc()->sz;
-  if(growproc(n) < 0)
+  if (growproc(n) < 0)
     return -1;
   return addr;
 }
@@ -53,14 +53,16 @@ sys_sleep(void)
 {
   int n;
   uint ticks0;
-
+  backtrace(); // I assumed it can be removed now
   argint(0, &n);
-  if(n < 0)
+  if (n < 0)
     n = 0;
   acquire(&tickslock);
   ticks0 = ticks;
-  while(ticks - ticks0 < n){
-    if(killed(myproc())){
+  while (ticks - ticks0 < n)
+  {
+    if (killed(myproc()))
+    {
       release(&tickslock);
       return -1;
     }
@@ -77,6 +79,37 @@ sys_kill(void)
 
   argint(0, &pid);
   return kill(pid);
+}
+
+uint64
+sys_sigalarm(void)
+{
+  uint64 handler_user;
+  int ticks;
+  argint(0, &ticks);
+  argaddr(1, &handler_user);
+  if (ticks == 0 && handler_user == 0)
+  {
+    myproc()->ticks_interval = -1;
+    return 0;
+  }
+  if (ticks < 0)
+    return -1;
+  myproc()->alarm_handler = handler_user;
+  myproc()->cur_ticks = 0;
+  myproc()->is_handled = 0;
+  myproc()->ticks_interval = ticks;
+  return 0;
+}
+
+uint64
+sys_sigreturn(void)
+{
+  struct proc *p = myproc();
+  p->is_handled = 0;
+  *(p->trapframe) = *(p->alarm_trapframe);
+  uint64 a0 = p->trapframe->a0;
+  return a0;
 }
 
 // return how many clock tick interrupts have occurred

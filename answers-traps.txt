@@ -1,0 +1,11 @@
+1. Registers a0-a7 (for integers) and registers fa0-fa7 (for floats) are used to pass arguments. a2 holds the value 13.
+2. The compiler just skips the calls to f (and inside f, to g) entirely and instead loads a1 with the value f(8)+1 (since f(8)=11, a1=12).
+Probably adding -O0 would make it call for f.
+3. printf can be found in 0x642
+4. after calling jalr in main, ra has the return address for printf, which is simply the address of the next instruction in main - 0x38.
+5. In hexa, 57616=0xE110 (so we get HE110, cute). This doesn't depend on little/big endian - the way numbers print shouldn't be affected by memory representation.
+Now, i can (and will) be interpreted as an array of ascii characters.
+In memory, i will be saved as 0x72 0x6c 0x64 0x00 and in ascii r l d /0, so we get the char array "rld/0" (with a null terminator - good!)
+and so itll print: "He110 World".
+If it was big endian, we'd set i to be 0x726c6400.
+6. y is going to get whatever sits in register a2 at the moment of calling printf (a0 is the pointer to the string, a1 is 3, and a2 can be whatever).

@@ -1,0 +1,6 @@
+Insert is not multi-thread safe. The following might happen:
+thread 0 & 1 are trying to insert item0,item1, both with keys fitting bin i.
+thread 0 runs insert and is stopped just before reaching "*p=e", so currently, p (table[i]) is unchanged.
+Now, thread 1 starts running put, and calls insert with table[i] (refered to by n, as seen by both threads).
+Now, thread 1 finishes (and sets *p = e1), and then thread0 runs again and sets *p=e0.
+Since thread0 overwrites the change thread1 made, item1 would be missing.

@@ -189,7 +189,6 @@ int main(int argc, char *argv[])
   thread_create(thread_a);
   thread_create(thread_b);
   thread_create(thread_c);
-  printf("Finished creating threads\n");
   thread_schedule();
   exit(0);
 }

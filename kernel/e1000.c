@@ -11,19 +11,19 @@
 #define TX_RING_SIZE 16
 static struct tx_desc tx_ring[TX_RING_SIZE] __attribute__((aligned(16)));
 static struct mbuf *tx_mbufs[TX_RING_SIZE];
-static uint32 tx_head;
 static uint32 tx_tail;
 
 #define RX_RING_SIZE 16
 static struct rx_desc rx_ring[RX_RING_SIZE] __attribute__((aligned(16)));
 static struct mbuf *rx_mbufs[RX_RING_SIZE];
-static uint32 rx_head;
 static uint32 rx_tail;
 
 // remember where the e1000's registers live.
 static volatile uint32 *regs;
 
 struct spinlock e1000_lock;
+struct spinlock e1000_tlock;
+struct spinlock e1000_rlock;
 
 // called by pci_init().
 // xregs is the memory address at which the
@@ -33,6 +33,8 @@ void e1000_init(uint32 *xregs)
   int i;
 
   initlock(&e1000_lock, "e1000");
+  initlock(&e1000_tlock, "e1000 t");
+  initlock(&e1000_rlock, "e1000 r");
 
   regs = xregs;
 
@@ -108,16 +110,36 @@ int e1000_transmit(struct mbuf *m)
   //
 
   // Notice - NO TCP
-  tx_head = regs[E1000_TDH];
+
+  acquire(&e1000_tlock);
+  struct mbuf *p = m;
   tx_tail = regs[E1000_TDT];
-  if (tx_ring[tx_tail].status != E1000_TXD_STAT_DD)
+  while (p != 0)
   {
-    return -1;
+    if (tx_ring[tx_tail].status != E1000_TXD_STAT_DD)
+    {
+      release(&e1000_tlock);
+      return -1;
+    }
+    if (tx_mbufs[tx_tail] != 0)
+      mbuffree(tx_mbufs[tx_tail]);
+    tx_ring[tx_tail].addr = (uint64)(p->head);
+    tx_ring[tx_tail].length = p->len;
+    tx_ring[tx_tail].cmd = E1000_TXD_CMD_RS;
+    if (p->next == 0)
+    {
+      tx_ring[tx_tail].cmd += E1000_TXD_CMD_EOP;
+    }
+    tx_ring[tx_tail].cso = 0;
+    tx_ring[tx_tail].css = 0;
+    tx_ring[tx_tail].special = 0;
+    tx_ring[tx_tail].status = 0;
+    tx_mbufs[tx_tail] = p;
+    p = p->next;
+    tx_tail = (tx_tail + 1) % TX_RING_SIZE;
   }
-  mbuffree(tx_mbufs[tx_tail]);
-  tx_ring[tx_tail].addr = ;
-  tx_ring[tx_tail].length = m->len;
-  tx_ring[tx_tail].;
+  regs[E1000_TDT] = tx_tail;
+  release(&e1000_tlock);
   return 0;
 }
 
@@ -130,6 +152,60 @@ e1000_recv(void)
   // Check for packets that have arrived from the e1000
   // Create and deliver an mbuf for each packet (using net_rx()).
   //
+  acquire(&e1000_rlock);
+  rx_tail = (regs[E1000_RDT] + 1) % RX_RING_SIZE;
+  struct mbuf *first = 0;
+  struct mbuf *new;
+  if (!(rx_ring[rx_tail].status & E1000_RXD_STAT_DD))
+  {
+    release(&e1000_rlock);
+    return; // Not ready
+  }
+  int flag = 1;
+  while ((rx_ring[rx_tail].status & E1000_RXD_STAT_DD))
+  {
+    if (rx_ring[rx_tail].errors != 0)
+    {
+      regs[E1000_RDT] = (rx_tail - 1 + RX_RING_SIZE) % RX_RING_SIZE;
+      release(&e1000_rlock);
+      return;
+    }
+    if (first == 0)
+    {
+      first = rx_mbufs[rx_tail];
+    }
+    rx_mbufs[rx_tail]->head = (char *)rx_ring[rx_tail].addr;
+    rx_mbufs[rx_tail]->len = rx_ring[rx_tail].length;
+    if (!(rx_ring[rx_tail].status & E1000_RXD_STAT_EOP))
+    {
+      rx_mbufs[rx_tail]->next = rx_mbufs[(rx_tail + 1) % RX_RING_SIZE];
+    }
+    else
+    {
+      rx_mbufs[rx_tail]->next = 0;
+      flag = 0;
+    }
+    if (!flag)
+    {
+      net_rx(first);
+      first = 0;
+      flag = 1;
+    }
+    new = mbufalloc(0);
+    if (new == 0)
+    {
+      regs[E1000_RDT] = (rx_tail - 1 + RX_RING_SIZE) % RX_RING_SIZE;
+      release(&e1000_rlock);
+      return;
+    }
+    rx_mbufs[rx_tail] = new;
+    rx_ring[rx_tail].addr = (uint64)new->head;
+    rx_ring[rx_tail].errors = 0;
+    rx_ring[rx_tail].status = 0;
+    rx_tail = (rx_tail + 1) % RX_RING_SIZE;
+    regs[E1000_RDT] = (rx_tail - 1 + RX_RING_SIZE) % RX_RING_SIZE;
+  }
+  release(&e1000_rlock);
 }
 
 void e1000_intr(void)

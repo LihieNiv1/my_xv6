@@ -11,6 +11,11 @@ int main(int argc, char *argv[])
         exit(1);
     }
     int time = atoi(argv[1]);
+    if (time < 0)
+    {
+        fprintf(2, "time must be non-negative\n");
+        exit(1);
+    }
     int status = sleep(time);
     if (status < 0)
     {

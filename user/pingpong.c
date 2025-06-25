@@ -17,6 +17,11 @@ int main(int argc, char *argv[])
         exit(1);
     }
     int my_proc = fork();
+    if (my_proc < 0)
+    {
+        fprintf(2, "Error in fork\n");
+        exit(1);
+    }
     if (my_proc == 0) // child
     {
         char child_buffer[1] = {0};

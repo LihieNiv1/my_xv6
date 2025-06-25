@@ -3,6 +3,8 @@
 #include "user/user.h"
 #include "kernel/param.h"
 
+#define MAX_CMD_LEN 100
+
 int exec_xargs(char *argv[])
 {
     int child = fork();
@@ -14,6 +16,8 @@ int exec_xargs(char *argv[])
             exit(1);
         }
     }
+    if (child < 0)
+        exit(1);
     wait(&child);
     return 0;
 }
@@ -25,14 +29,15 @@ int main(int argc, char *argv[])
         fprintf(2, "Usage: xargs <command> <args>\n");
         exit(1);
     }
-    char line_arg[101] = {0};
+    char line_arg[MAX_CMD_LEN + 1] = {0};
     uint offset = 0;
     for (int i = 0; i < argc - 1; i++)
     {
         argv[i] = argv[i + 1];
     }
     argv[argc - 1] = line_arg;
-    while (read(0, line_arg + offset, 1) == 1)
+    int status = 0;
+    while ((status = read(0, line_arg + offset, 1)) == 1)
     {
         if (line_arg[offset] == '\n')
         {
@@ -40,7 +45,7 @@ int main(int argc, char *argv[])
             exec_xargs(argv);
             offset = 0;
         }
-        else if (offset == 100)
+        else if (offset == MAX_CMD_LEN)
         {
             fprintf(2, "xargs: line too long\n");
             exit(1);
@@ -49,6 +54,11 @@ int main(int argc, char *argv[])
         {
             offset++;
         }
+    }
+    if (status < 0)
+    {
+        fprintf(2, "Error in read\n");
+        exit(1);
     }
     exit(0);
 }

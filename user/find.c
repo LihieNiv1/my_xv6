@@ -21,7 +21,7 @@ fmtname(char *path)
     return buf;
 }
 
-void find(char *dir_path, char *pattern)
+int find(char *dir_path, char *pattern)
 {
     char buf[512], *p;
     int fd;
@@ -31,21 +31,23 @@ void find(char *dir_path, char *pattern)
     if ((fd = open(dir_path, 0)) < 0)
     {
         fprintf(2, "find: cannot open %s\n", dir_path);
-        return;
+        return 1;
     }
 
     if (fstat(fd, &st) < 0)
     {
         fprintf(2, "find: cannot stat %s\n", dir_path);
         close(fd);
-        return;
+        return 1;
     }
 
     if (st.type == T_DIR)
     {
-        if (strlen(dir_path) + 1 + DIRSIZ + 1 > sizeof buf)
+        if (strlen(dir_path) + 1 + DIRSIZ + 1 > sizeof buf) // check over length of path
         {
-            printf("find: path too long\n");
+            fprintf(2, "find: path too long\n");
+            close(fd);
+            return 1;
         }
         else
         {
@@ -60,15 +62,19 @@ void find(char *dir_path, char *pattern)
                 p[DIRSIZ] = 0;
                 if (stat(buf, &st) < 0)
                 {
-                    printf("find: cannot stat %s\n", buf);
-                    continue;
+                    fprintf(2, "find: cannot stat %s\n", buf);
+                    return 1;
                 }
                 if (st.type == T_DIR)
                 {
 
                     if (strcmp(".", fmtname(buf)) && strcmp("..", fmtname(buf)))
                     {
-                        find(buf, pattern);
+                        if (find(buf, pattern) < 0)
+                        {
+                            close(fd);
+                            return 1;
+                        }
                     }
                 }
                 else if (!strcmp(fmtname(buf), pattern))
@@ -76,7 +82,13 @@ void find(char *dir_path, char *pattern)
             }
         }
     }
+    else
+    {
+        close(fd);
+        return 1;
+    }
     close(fd);
+    return 0;
 }
 
 int main(int argc, char *argv[])
@@ -84,17 +96,12 @@ int main(int argc, char *argv[])
 
     if (argc == 2)
     {
-        find(".", argv[1]);
-        exit(0);
+        exit(find(".", argv[1]));
     }
-    if (argc > 3)
+    if (argc > 3 || argc == 1)
     {
         fprintf(2, "Usage: find <directory> <pattern>");
         exit(1);
     }
-    else
-    {
-        find(argv[1], argv[2]);
-    }
-    exit(0);
+    exit(find(argv[1], argv[2]));
 }
